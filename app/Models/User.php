@@ -45,4 +45,9 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+    public function quotations()
+{
+    return $this->hasMany(\App\Models\Quotation::class);
+}
+
 }

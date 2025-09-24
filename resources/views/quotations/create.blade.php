@@ -3,9 +3,37 @@
 @section('content')
 <div class="container py-4">
   <h2 class="mb-3">Nueva Cotización</h2>
+  @if ($errors->any())
+  <div class="alert alert-danger">
+    <div class="fw-bold mb-2">Revisa los siguientes errores:</div>
+    <ul class="mb-0">
+      @foreach ($errors->keys() as $field)
+  <li>{{ $field }}: {{ $errors->first($field) }}</li>
+@endforeach
+
+    </ul>
+  </div>
+@endif
+
 
   <form method="POST" action="{{ route('quotations.store') }}" id="qform">
     @csrf
+@auth
+  {{-- Con sesión iniciada no hace falta pedirlo --}}
+  <input type="hidden" name="user_id" value="{{ auth()->id() }}">
+@else
+  <div class="col-md-4">
+    <label class="form-label">Cliente</label>
+    <select name="user_id" class="form-select" required>
+      <option value="">Seleccione…</option>
+      @foreach($clients as $c)
+        <option value="{{ $c->id }}" @selected(old('user_id') == $c->id)>
+          {{ $c->name }} @if($c->email) ({{ $c->email }}) @endif
+        </option>
+      @endforeach
+    </select>
+  </div>
+@endauth
 
     <div class="row g-3">
       <div class="col-md-3">
@@ -27,37 +55,39 @@
       <div class="col-12">
         <label class="form-label">Objeto</label>
         <textarea name="objeto" class="form-control" rows="2"></textarea>
-    </div>
-
-      <div class="col-12">
-  <label class="form-label d-block">Tipos de estudio (elige uno o varios)</label>
-
-  <div id="studyChecks" class="row row-cols-1 row-cols-md-2 g-2">
-    @foreach($studyTypes as $st)
-      <div class="col">
-        <div class="form-check">
-          <input
-            class="form-check-input study-check"
-            type="checkbox"
-            id="st-{{ $st->key }}"
-            name="studyTypes[]"                 {{-- para que el form envíe un arreglo --}}
-            value="{{ $st->key }}"
-            data-label="{{ $st->label }}"
-          >
-          <label class="form-check-label" for="st-{{ $st->key }}">
-            {{ $st->label }}
-          </label>
-        </div>
       </div>
-    @endforeach
-  </div>
 
-  <div class="form-text">Al marcar o desmarcar, se agregarán o quitarán ítems (editables).</div>
-</div>
+      {{-- Checkboxes de tipos de estudio --}}
+      <div class="col-12">
+        <label class="form-label d-block">Tipos de estudio (elige uno o varios)</label>
 
+        <div id="studyChecks" class="row row-cols-1 row-cols-md-2 g-2">
+          @foreach($studyTypes as $st)
+            <div class="col">
+              <div class="form-check">
+                <input
+                  class="form-check-input study-check"
+                  type="checkbox"
+                  id="st-{{ $st->key }}"
+                  name="studyTypes[]"
+                  value="{{ $st->key }}"
+                  data-label="{{ $st->label }}"
+                >
+                <label class="form-check-label" for="st-{{ $st->key }}">
+                  {{ $st->label }}
+                </label>
+              </div>
+            </div>
+          @endforeach
+        </div>
+
+        <div class="form-text">Al marcar o desmarcar, se agregarán o quitarán ítems (editables).</div>
+      </div>
+    </div>
 
     <hr class="my-4">
 
+    {{-- Tabla de ítems --}}
     <div class="table-responsive">
       <table class="table table-bordered align-middle" id="itemsTable">
         <thead class="table-light">
@@ -86,17 +116,16 @@
 
     <button type="button" class="btn btn-outline-primary mb-3" id="addRowBtn">Agregar ítem manual</button>
 
-    
-  <div class="mb-2"><b>Notas:</b></div>
-  <div id="notesBox" class="mb-3">
-  @foreach($defaultNotes as $i => $note)
-    <div class="input-group mb-2">
-      <span class="input-group-text">•</span>
-      <input name="notas[]" class="form-control" value="{{ $note }}">
-      <button type="button" class="btn btn-outline-danger btn-sm del-note" tabindex="-1">X</button>
-    </div>
-  @endforeach
-</div>
+    {{-- Notas --}}
+    <div class="mb-2"><b>Notas:</b></div>
+    <div id="notesBox" class="mb-3">
+      @foreach($defaultNotes as $i => $note)
+        <div class="input-group mb-2">
+          <span class="input-group-text">•</span>
+          <input name="notas[]" class="form-control" value="{{ $note }}">
+          <button type="button" class="btn btn-outline-danger btn-sm del-note" tabindex="-1">X</button>
+        </div>
+      @endforeach
     </div>
     <button type="button" class="btn btn-sm btn-outline-secondary" id="addNoteBtn">Añadir nota</button>
 
@@ -108,6 +137,7 @@
 
 {{-- Bootstrap 5 (rápido) --}}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
 <script>
 const money = n => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(n);
 
@@ -157,19 +187,30 @@ document.getElementById('addNoteBtn').addEventListener('click', () => {
   attachDeleteNoteEvents();
 });
 
-// Cargar items desde tipos de estudio seleccionados
-// Cargar items desde los checkboxes marcados
-document.getElementById('studyChecks').addEventListener('change', async () => {
-  const keys = Array.from(document.querySelectorAll('.study-check:checked')).map(el => el.value);
+function attachDeleteNoteEvents() {
+  document.querySelectorAll('.del-note').forEach(btn => {
+    btn.onclick = function() {
+      btn.closest('.input-group').remove();
+    };
+  });
+}
+// engancha las notas precargadas al cargar
+attachDeleteNoteEvents();
 
+// Debounce sencillo
+const debounce = (fn, ms=200) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),ms); }; };
+
+// Cargar items desde checkboxes marcados (reconstruye tabla)
+document.getElementById('studyChecks').addEventListener('change', debounce(async () => {
+  const keys = Array.from(document.querySelectorAll('.study-check:checked')).map(el => el.value);
   const tbody = document.getElementById('itemsBody');
+
   if (keys.length === 0) {
     tbody.innerHTML = '';
     recalc();
     return;
   }
 
-  // Enviar como arreglo keys[]=1&keys[]=5...
   const params = new URLSearchParams();
   keys.forEach(k => params.append('keys[]', k));
 
@@ -178,15 +219,7 @@ document.getElementById('studyChecks').addEventListener('change', async () => {
   const items = await res.json();
 
   tbody.innerHTML = '';
-  items.forEach(it => addRow(it));
-});
-function attachDeleteNoteEvents() {
-  document.querySelectorAll('.del-note').forEach(btn => {
-    btn.onclick = function() {
-      btn.closest('.input-group').remove();
-    };
-  });
-}
-
+  items.forEach(it => addRow(it)); // addRow ya invoca recalc()
+}, 200));
 </script>
 @endsection

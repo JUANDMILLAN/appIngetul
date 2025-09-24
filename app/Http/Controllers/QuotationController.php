@@ -7,6 +7,9 @@ use App\Models\QuotationItem;
 use App\Models\StudyType;
 use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Facades\Storage;        // 👈 nuevo
+use Illuminate\Support\Str;
+use App\Services\ConsecutiveService;          // 👈 nuevo
 
 class QuotationController extends Controller
 {
@@ -20,7 +23,8 @@ class QuotationController extends Controller
             'Este proyecto se factura como obra civil',
             'Se debe suministrar topografía en caso de pendientes',
         ];
-        return view('quotations.create', compact('studyTypes', 'defaultNotes'));
+        $clients = \App\Models\User::orderBy('name')->get(['id','name','email']);
+        return view('quotations.create', compact('studyTypes', 'defaultNotes', 'clients'));
     }
 
     // devuelve plantillas de ítems a partir de keys seleccionadas
@@ -42,42 +46,68 @@ class QuotationController extends Controller
         return response()->json($items);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, ConsecutiveService $consecutive)
+
     {
-        // 1) Validar encabezado + items
-        $data = $request->validate([
-            'fecha'        => ['required','date'],
-            'ciudad'       => ['required','string'],
-            'departamento' => ['required','string'],
-            'dirigido_a'   => ['required','string'],
-            'objeto'       => ['nullable','string'],
-            'notas'        => ['nullable','array'],
+    // Valida TODO, incluyendo user_id SIEMPRE
+    $data = $request->validate([
+        'user_id'      => ['required','exists:users,id'],    // 👈 SIEMPRE
+        'fecha'        => ['required','date'],
+        'ciudad'       => ['required','string'],
+        'departamento' => ['required','string'],
+        'dirigido_a'   => ['required','string'],
+        'objeto'       => ['nullable','string'],
+        'notas'        => ['nullable','array'],
+        'estado'       => ['required','in:pendiente,abonado,pagado'],
 
-            'items'                     => ['required','array','min:1'],
-            'items.*.descripcion'       => ['required','string'],
-            'items.*.und'               => ['required','string','max:10'],
-            'items.*.cantidad'          => ['required','integer','min:1'],
-            'items.*.vr_unitario'       => ['required','integer','min:0'],
-        ]);
+        'items'                     => ['required','array','min:1'],
+        'items.*.descripcion'       => ['required','string'],
+        'items.*.und'               => ['required','string','max:10'],
+        'items.*.cantidad'          => ['required','integer','min:1'],
+        'items.*.vr_unitario'       => ['required','integer','min:0'],
+    ]);
 
-        // 2) Crear encabezado
-        $quotation = Quotation::create([
-            'fecha'        => $data['fecha'],
-            'ciudad'       => $data['ciudad'],
-            'departamento' => $data['departamento'],
-            'dirigido_a'   => $data['dirigido_a'],
-            'objeto'       => $data['objeto'] ?? null,
-            'notas'        => $data['notas'] ?? [],
-        ]);
+    $next = $consecutive->next('quotations');
 
-        // 3) Crear items
-        foreach ($data['items'] as $row) {
-            $row['vr_total'] = (int)$row['cantidad'] * (int)$row['vr_unitario'];
-            $quotation->items()->create($row);
-        }
+    $quotation = Quotation::create([
+        'user_id'      => (int) $data['user_id'],          // 👈 CLAVE
+        'consecutivo'  => $next,
+        'fecha'        => $data['fecha'],
+        'ciudad'       => $data['ciudad'],
+        'departamento' => $data['departamento'],
+        'dirigido_a'   => $data['dirigido_a'],
+        'objeto'       => $data['objeto'] ?? null,
+        'notas'        => $data['notas'] ?? [],
+        'estado'       => 'pendiente',
+    ]);
 
-        return redirect()->route('quotations.show', $quotation);
+    // 4) Crear items
+    foreach ($data['items'] as $row) {
+        $row['vr_total'] = (int)$row['cantidad'] * (int)$row['vr_unitario'];
+        $quotation->items()->create($row);
     }
+
+    // 5) Generar y guardar PDF en carpeta del cliente
+    $this->ensureAddresseePdf($quotation);
+
+    $slug = \Illuminate\Support\Str::slug((string)$quotation->dirigido_a ?: 'sin-nombre');
+return redirect()->route('cotnom.show', $slug)->with('ok', 'Cotización creada y PDF guardado');
+}
+
+private function ensureAddresseePdf(\App\Models\Quotation $q): void
+{
+    $q->loadMissing('items');
+    $slug = \Illuminate\Support\Str::slug((string)$q->dirigido_a ?: 'sin-nombre');
+    $dir  = "cotizaciones-clientes/{$slug}";
+    $file = 'COT-'.str_pad($q->consecutivo, 6, '0', STR_PAD_LEFT).'.pdf';
+    $path = "{$dir}/{$file}";
+
+    if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('quotations.pdf', ['quotation' => $q])->setPaper('letter');
+        \Illuminate\Support\Facades\Storage::disk('local')->makeDirectory($dir);
+        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $pdf->output());
+    }
+}
 
     public function show(Quotation $quotation)
     {

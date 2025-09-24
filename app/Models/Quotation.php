@@ -4,11 +4,15 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Quotation extends Model
 {
     protected $fillable = [
-        'fecha','ciudad','departamento','dirigido_a','objeto','notas'
+        
+        'user_id',        
+        'consecutivo',
+        'fecha','ciudad','departamento','dirigido_a','objeto','notas','estado'
     ];
 
     protected $casts = [
@@ -24,6 +28,10 @@ class Quotation extends Model
     public function total(): int
     {
         return (int) $this->items()->sum('vr_total');
+    }
+    public function user(): BelongsTo
+    {
+        return $this->belongsTo(\App\Models\User::class);
     }
 }
 
