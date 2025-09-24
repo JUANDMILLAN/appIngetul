@@ -13,3 +13,4 @@ Route::get('/carpetas/{slug}', [CotizacionesPorNombreController::class, 'show'])
 Route::get('/carpetas/{slug}/{quotation}/pdf', [CotizacionesPorNombreController::class, 'pdf'])->name('cotnom.pdf');
 Route::get('/api/study-items', [QuotationController::class, 'studyItems'])->name('api.study-items');
 Route::patch('/carpetas/{slug}/{quotation}/estado', [CotizacionesPorNombreController::class, 'updateEstado'])->name('cotnom.updateEstado');
+Route::get('/ajax/dirigidos', [QuotationController::class, 'searchDirigidos'])->name('ajax.dirigidos');

@@ -12,21 +12,29 @@ use Barryvdh\DomPDF\Facade\Pdf;
 class CotizacionesPorNombreController extends Controller
 {
     /** Lista de clientes (distinct por dirigido_a) con conteo de cotizaciones */
-    public function index()
-    {
-        // Ojo: si hay mayúsculas/minúsculas distintas del mismo nombre, normalizamos.
-        $clientes = Quotation::query()
-            ->selectRaw('TRIM(LOWER(dirigido_a)) as key_name, MAX(dirigido_a) as display_name, COUNT(*) as total')
-            ->groupBy('key_name')
-            ->orderBy('display_name')
-            ->get()
-            ->map(function ($row) {
-                $row->slug = Str::slug($row->display_name ?: 'sin-nombre');
-                return $row;
-            });
+    public function index(Request $request)
+{
+    $perPage = 12; // ← cámbialo a 8, 10, 12, etc.
+    $q = trim((string) $request->get('q', ''));
 
-        return view('cotnom.index', compact('clientes'));
-    }
+    $builder = \App\Models\Quotation::query()
+        ->selectRaw('TRIM(LOWER(dirigido_a)) as key_name, MAX(dirigido_a) as display_name, COUNT(*) as total')
+        ->when($q !== '', function ($qq) use ($q) {
+            // Filtra antes del group by para que funcione el LIKE
+            $qq->where('dirigido_a', 'LIKE', "%{$q}%");
+        })
+        ->groupBy('key_name')
+        ->orderBy('display_name');
+
+    // Paginamos y añadimos "slug" a cada item
+    $clientes = $builder->paginate($perPage);
+    $clientes->getCollection()->transform(function ($row) {
+        $row->slug = Str::slug($row->display_name ?: 'sin-nombre');
+        return $row;
+    });
+
+    return view('cotnom.index', compact('clientes'));
+}
 
     /** Muestra las cotizaciones de un cliente por su nombre (dirigido_a) */
     public function show(string $slug)

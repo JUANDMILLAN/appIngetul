@@ -49,9 +49,16 @@
         <input name="departamento" class="form-control" required>
       </div>
       <div class="col-md-3">
-        <label class="form-label">Dirigido a</label>
-        <input name="dirigido_a" class="form-control" required>
-      </div>
+ <label class="form-label" for="dirigidoSelect">Dirigido a</label>
+<select id="dirigidoSelect" name="dirigido_a" class="form-select" required>
+      <option value="">Seleccione o escriba para crear…</option>
+
+    @if(old('dirigido_a'))
+      <option value="{{ old('dirigido_a') }}" selected>{{ old('dirigido_a') }}</option>
+    @endif
+  </select>
+</div>
+
       <div class="col-12">
         <label class="form-label">Objeto</label>
         <textarea name="objeto" class="form-control" rows="2"></textarea>
@@ -137,6 +144,9 @@
 
 {{-- Bootstrap 5 (rápido) --}}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+
 
 <script>
 const money = n => new Intl.NumberFormat('es-CO',{style:'currency',currency:'COP',maximumFractionDigits:0}).format(n);
@@ -221,5 +231,45 @@ document.getElementById('studyChecks').addEventListener('change', debounce(async
   tbody.innerHTML = '';
   items.forEach(it => addRow(it)); // addRow ya invoca recalc()
 }, 200));
+
+// --- Tom Select para "Dirigido a"
+document.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('dirigidoSelect');
+  if (!el) return;
+
+  new TomSelect(el, {
+  valueField: 'value',
+  labelField: 'text',
+  searchField: ['text'],
+  create: true,
+  createOnBlur: true,
+  persist: false,
+  maxOptions: 10,
+  preload: 'focus',
+  shouldLoad: () => true,
+  loadThrottle: 250,
+  placeholder: 'Escribe para buscar o crear…',
+  render: {
+    option_create: (data, escape) =>
+      '<div class="create">➕ Crear: <strong>' + escape(data.input) + '</strong></div>',
+    no_results: () =>
+      '<div class="no-results text-muted px-2 py-1">Sin resultados… escribe para crear</div>'
+  },
+  load: function(query, callback) {
+    const url = '{{ route('ajax.dirigidos') }}?q=' + encodeURIComponent(query || '');
+    fetch(url, { headers: { 'Accept': 'application/json' } })
+      .then(r => r.json())
+      .then(json => {
+        console.log('dirigidos:', json);   // ← útil para depurar
+        callback(json);
+      })
+      .catch(err => {
+        console.error('error dirigidos:', err);
+        callback();
+      });
+  },
+ 
+});
+});
 </script>
 @endsection

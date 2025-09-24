@@ -58,7 +58,7 @@ class QuotationController extends Controller
         'dirigido_a'   => ['required','string'],
         'objeto'       => ['nullable','string'],
         'notas'        => ['nullable','array'],
-        'estado'       => ['required','in:pendiente,abonado,pagado'],
+        
 
         'items'                     => ['required','array','min:1'],
         'items.*.descripcion'       => ['required','string'],
@@ -122,4 +122,23 @@ private function ensureAddresseePdf(\App\Models\Quotation $q): void
                   ->setPaper('letter'); // o 'a4'
         return $pdf->download('cotizacion-'.$quotation->id.'.pdf');
     }
+  public function searchDirigidos(Request $request)
+{
+    $q = trim((string) $request->get('q', ''));
+
+    $rows = \App\Models\Quotation::query()
+        ->whereNotNull('dirigido_a')
+        ->where('dirigido_a', '!=', '')
+        ->when($q !== '', fn($qq) => $qq->where('dirigido_a', 'like', "%{$q}%"))
+        ->selectRaw('LOWER(TRIM(dirigido_a)) as key_name, MAX(dirigido_a) as display_name')
+        ->groupBy('key_name')
+        ->orderBy('display_name')
+        ->limit(10)
+        ->get();
+
+    return response()->json(
+        $rows->map(fn ($r) => ['value' => $r->display_name, 'text' => $r->display_name])->values()
+    );
+}
+
 }
