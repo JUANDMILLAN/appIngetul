@@ -12,7 +12,7 @@ class Quotation extends Model
         
         'user_id',        
         'consecutivo',
-        'fecha','ciudad','departamento','dirigido_a','objeto','notas','estado'
+        'fecha','ciudad','departamento','dirigido_a','referente',  'objeto','notas','estado'
     ];
 
     protected $casts = [

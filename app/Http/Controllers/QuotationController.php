@@ -58,6 +58,8 @@ class QuotationController extends Controller
         'dirigido_a'   => ['required','string'],
         'objeto'       => ['nullable','string'],
         'notas'        => ['nullable','array'],
+        'referente'    => ['nullable','string','max:150'],
+
         
 
         'items'                     => ['required','array','min:1'],
@@ -79,6 +81,8 @@ class QuotationController extends Controller
         'objeto'       => $data['objeto'] ?? null,
         'notas'        => $data['notas'] ?? [],
         'estado'       => 'pendiente',
+        'referente'    => $data['referente'] ?? null,
+
     ]);
 
     // 4) Crear items
@@ -88,26 +92,12 @@ class QuotationController extends Controller
     }
 
     // 5) Generar y guardar PDF en carpeta del cliente
-    $this->ensureAddresseePdf($quotation);
+    $this->ensureReferentePdf($quotation);
 
-    $slug = \Illuminate\Support\Str::slug((string)$quotation->dirigido_a ?: 'sin-nombre');
+   $slug = \Illuminate\Support\Str::slug((string)$quotation->referente ?: 'sin-referente');
 return redirect()->route('cotnom.show', $slug)->with('ok', 'Cotización creada y PDF guardado');
 }
 
-private function ensureAddresseePdf(\App\Models\Quotation $q): void
-{
-    $q->loadMissing('items');
-    $slug = \Illuminate\Support\Str::slug((string)$q->dirigido_a ?: 'sin-nombre');
-    $dir  = "cotizaciones-clientes/{$slug}";
-    $file = 'COT-'.str_pad($q->consecutivo, 6, '0', STR_PAD_LEFT).'.pdf';
-    $path = "{$dir}/{$file}";
-
-    if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('quotations.pdf', ['quotation' => $q])->setPaper('letter');
-        \Illuminate\Support\Facades\Storage::disk('local')->makeDirectory($dir);
-        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $pdf->output());
-    }
-}
 
     public function show(Quotation $quotation)
     {
@@ -140,5 +130,40 @@ private function ensureAddresseePdf(\App\Models\Quotation $q): void
         $rows->map(fn ($r) => ['value' => $r->display_name, 'text' => $r->display_name])->values()
     );
 }
+public function searchReferentes(Request $request)
+{
+    $q = trim((string)$request->get('q',''));
+
+    $rows = \App\Models\Quotation::query()
+        ->whereNotNull('referente')
+        ->where('referente','!=','')
+        ->when($q !== '', fn($qq) => $qq->where('referente','like',"%{$q}%"))
+        ->selectRaw('LOWER(TRIM(referente)) as key_name, MAX(referente) as display_name')
+        ->groupBy('key_name')
+        ->orderBy('display_name')
+        ->limit(10)
+        ->get();
+
+    return response()->json(
+        $rows->map(fn($r) => ['value' => $r->display_name, 'text' => $r->display_name])->values()
+    );
+}
+private function ensureReferentePdf(\App\Models\Quotation $q): void
+{
+    $q->loadMissing('items');
+
+    $slug = \Illuminate\Support\Str::slug($q->referente ?: 'sin-referente');
+    $dir  = "cotizaciones-clientes/{$slug}";
+    $file = 'COT-'.str_pad($q->consecutivo, 6, '0', STR_PAD_LEFT).'.pdf';
+    $path = "{$dir}/{$file}";
+
+    if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('quotations.pdf', ['quotation' => $q])->setPaper('letter');
+        \Illuminate\Support\Facades\Storage::disk('local')->makeDirectory($dir);
+        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $pdf->output());
+    }
+}
+
+
 
 }

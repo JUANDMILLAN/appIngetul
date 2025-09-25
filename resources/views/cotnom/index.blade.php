@@ -4,14 +4,23 @@
 @section('content')
 <div class="container py-4">
   <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
-    <h2 class="mb-0">Carpetas</h2>
+    <h2 class="mb-0">Carpetas por referente</h2>
     <a href="{{ route('quotations.create') }}" class="btn btn-success">Nueva Cotización</a>
   </div>
 
-  <input id="clientSearch" class="form-control mb-3" placeholder="Buscar nombre…">
+  {{-- Búsqueda (servidor) --}}
+  <form method="GET" action="{{ route('cotnom.index') }}" class="mb-3" role="search">
+    <label for="clientSearch" class="visually-hidden">Buscar referente</label>
+    <input
+      id="clientSearch"
+      name="q"
+      value="{{ request('q') }}"
+      class="form-control"
+      placeholder="Buscar referente…">
+  </form>
 
   @if($clientes->isEmpty())
-    <div class="alert alert-info">No hay cotizaciones.</div>
+    <div class="alert alert-info">No hay referentes.</div>
   @else
     <div class="row g-3" id="clientsGrid">
       @foreach($clientes as $c)
@@ -24,7 +33,8 @@
                   <div class="folder-icon" aria-hidden="true">📁</div>
                   <span class="badge count-badge">{{ $c->total }}</span>
                 </div>
-                <div class="folder-name fw-semibold text-truncate text-white" title="{{ $c->display_name }}">
+                {{-- Importante: sin "text-white" para que se vea sobre fondo claro --}}
+                <div class="folder-name fw-semibold text-truncate" title="{{ $c->display_name }}">
                   {{ $c->display_name }}
                 </div>
                 <div class="small text-muted mt-1">Carpeta</div>
@@ -33,6 +43,10 @@
           </a>
         </div>
       @endforeach
+    </div>
+
+    <div class="mt-3">
+      {{ $clientes->withQueryString()->links() }}
     </div>
   @endif
 </div>
@@ -57,7 +71,7 @@
 
 /* Icono & nombre */
 .folder-icon { font-size: 1.25rem; opacity: .9; }
-.folder-name { line-height: 1.2; }
+.folder-name { line-height: 1.2; color: #111827; } /* texto visible en claro */
 
 /* Badge de conteo */
 .count-badge {
@@ -65,24 +79,26 @@
   color: #fff; border-radius: 999px; padding: .25rem .5rem; font-weight: 600;
 }
 
-/* Modo oscuro si tu layout lo usa */
+/* Modo oscuro */
 @media (prefers-color-scheme: dark) {
   .folder { background: #151a23; }
+  .folder-name { color: #e5e7eb; } /* texto visible en oscuro */
   .count-badge { background: linear-gradient(90deg, #6b5cff, #33b6ff); }
   .small.text-muted { color: #9aa3af !important; }
 }
 </style>
 
 <script>
+/* Filtro en cliente (opcional, sobre la página actual) */
 const inp = document.getElementById('clientSearch');
 if (inp) {
+  const grid = document.getElementById('clientsGrid');
+  // Si el input está dentro del form, evitamos enviar en cada pulsación
   inp.addEventListener('input', () => {
-    const q = inp.value.trim().toLowerCase();
-    let visible = 0;
-    document.querySelectorAll('#clientsGrid .client-card').forEach(el => {
-      const show = (el.dataset.name || '').includes(q);
-      el.style.display = show ? '' : 'none';
-      if (show) visible++;
+    if (!grid) return;
+    const q = (inp.value || '').trim().toLowerCase();
+    grid.querySelectorAll('.client-card').forEach(el => {
+      el.style.display = (el.dataset.name || '').includes(q) ? '' : 'none';
     });
   });
 }

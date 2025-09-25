@@ -58,6 +58,15 @@
     @endif
   </select>
 </div>
+<div class="col-md-3">
+  <label class="form-label" for="referenteSelect">Referente</label>
+  <select id="referenteSelect" name="referente" class="form-select">
+    @if(old('referente'))
+      <option value="{{ old('referente') }}" selected>{{ old('referente') }}</option>
+    @endif
+  </select>
+  <div class="form-text">Escribe para buscar o crear…</div>
+</div>
 
       <div class="col-12">
         <label class="form-label">Objeto</label>
@@ -270,6 +279,38 @@ document.addEventListener('DOMContentLoaded', () => {
   },
  
 });
+});
+document.addEventListener('DOMContentLoaded', () => {
+  const refEl = document.getElementById('referenteSelect');
+  if (refEl) {
+    new TomSelect(refEl, {
+      valueField: 'value',
+      labelField: 'text',
+      searchField: ['text'],
+      create: true,
+      createOnBlur: true,
+      persist: false,
+      maxOptions: 10,
+      preload: 'focus',
+      shouldLoad: () => true,  // carga aunque no haya tecleo
+      loadThrottle: 250,
+      placeholder: 'Escribe para buscar o crear…',
+      render: {
+        option_create: (data, escape) =>
+          '<div class="create">➕ Crear: <strong>' + escape(data.input) + '</strong></div>',
+        no_results: () =>
+          '<div class="no-results text-muted px-2 py-1">Sin resultados… escribe para crear</div>'
+      },
+      load: function(query, callback) {
+        const url = '{{ route('ajax.referentes') }}?q=' + encodeURIComponent(query || '');
+        fetch(url, { headers: { 'Accept': 'application/json' } })
+          .then(r => r.json())
+          .then(json => callback(json))
+          .catch(() => callback());
+      },
+      
+    });
+  }
 });
 </script>
 @endsection
