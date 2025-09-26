@@ -2,21 +2,12 @@
 
 @section('content')
 <div class="container py-4">
-  <h2 class="mb-3">Nueva Cotización</h2>
-  @if ($errors->any())
-  <div class="alert alert-danger">
-    <div class="fw-bold mb-2">Revisa los siguientes errores:</div>
-    <ul class="mb-0">
-      @foreach ($errors->keys() as $field)
-  <li>{{ $field }}: {{ $errors->first($field) }}</li>
-@endforeach
-
-    </ul>
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2 class="mb-0">Nueva Cotización</h2>
+    <a href="{{ route('cotnom.index') }}" class="btn btn-sm btn-outline-primary">Carpetas</a>
   </div>
-@endif
 
-
-  <form method="POST" action="{{ route('quotations.store') }}" id="qform">
+  <form method="POST" action="{{ route('quotations.store') }}" id="qform"class="needs-validation" novalidate>
     @csrf
 @auth
   {{-- Con sesión iniciada no hace falta pedirlo --}}
@@ -41,13 +32,18 @@
         <input type="date" name="fecha" class="form-control" value="{{ date('Y-m-d') }}" required>
       </div>
       <div class="col-md-3">
-        <label class="form-label">Ciudad</label>
-        <input name="ciudad" class="form-control" required>
-      </div>
+    <label class="form-label">Departamento</label>
+    <input type="text" name="departamento" class="form-control @error('departamento') is-invalid @enderror"
+           value="{{ old('departamento') }}" required placeholder="Departamento (requerido)">
+    @error('departamento') <div class="invalid-feedback">{{ $message }}</div> @enderror
+  </div>
       <div class="col-md-3">
-        <label class="form-label">Departamento</label>
-        <input name="departamento" class="form-control" required>
-      </div>
+    <label class="form-label">Ciudad</label>
+    <input type="text" name="ciudad" class="form-control @error('ciudad') is-invalid @enderror"
+           value="{{ old('ciudad') }}" required placeholder="Ciudad (requerido)">
+    @error('ciudad') <div class="invalid-feedback">{{ $message }}</div> @enderror
+  </div>
+      
       <div class="col-md-3">
  <label class="form-label" for="dirigidoSelect">Dirigido a</label>
 <select id="dirigidoSelect" name="dirigido_a" class="form-select" required>
@@ -69,9 +65,11 @@
 </div>
 
       <div class="col-12">
-        <label class="form-label">Objeto</label>
-        <textarea name="objeto" class="form-control" rows="2"></textarea>
-      </div>
+    <label class="form-label">Objeto</label>
+    <textarea name="objeto" class="form-control @error('objeto') is-invalid @enderror" rows="2"
+              placeholder="Describe el objeto de la cotización">{{ old('objeto') }}</textarea>
+    @error('objeto') <div class="invalid-feedback">{{ $message }}</div> @enderror
+  </div>
 
       {{-- Checkboxes de tipos de estudio --}}
       <div class="col-12">
@@ -79,22 +77,16 @@
 
         <div id="studyChecks" class="row row-cols-1 row-cols-md-2 g-2">
           @foreach($studyTypes as $st)
-            <div class="col">
-              <div class="form-check">
-                <input
-                  class="form-check-input study-check"
-                  type="checkbox"
-                  id="st-{{ $st->key }}"
-                  name="studyTypes[]"
-                  value="{{ $st->key }}"
-                  data-label="{{ $st->label }}"
-                >
-                <label class="form-check-label" for="st-{{ $st->key }}">
-                  {{ $st->label }}
-                </label>
-              </div>
-            </div>
-          @endforeach
+  <div class="col">
+    <div class="form-check">
+      <input class="form-check-input study-check" type="checkbox"
+             id="st-{{ $st->key }}" name="studyTypes[]"
+             value="{{ $st->key }}" data-label="{{ $st->label }}"
+             @checked(in_array($st->key, old('studyTypes', [])))>
+      <label class="form-check-label" for="st-{{ $st->key }}">{{ $st->label }}</label>
+    </div>
+  </div>
+@endforeach
         </div>
 
         <div class="form-text">Al marcar o desmarcar, se agregarán o quitarán ítems (editables).</div>
@@ -133,16 +125,17 @@
     <button type="button" class="btn btn-outline-primary mb-3" id="addRowBtn">Agregar ítem manual</button>
 
     {{-- Notas --}}
-    <div class="mb-2"><b>Notas:</b></div>
-    <div id="notesBox" class="mb-3">
-      @foreach($defaultNotes as $i => $note)
-        <div class="input-group mb-2">
-          <span class="input-group-text">•</span>
-          <input name="notas[]" class="form-control" value="{{ $note }}">
-          <button type="button" class="btn btn-outline-danger btn-sm del-note" tabindex="-1">X</button>
-        </div>
-      @endforeach
+    @php $notes = old('notas', $defaultNotes); @endphp
+<div id="notesBox" class="mb-3">
+  @foreach($notes as $note)
+    <div class="input-group mb-2">
+      <span class="input-group-text">•</span>
+      <input name="notas[]" class="form-control" value="{{ $note }}">
+      <button type="button" class="btn btn-outline-danger btn-sm del-note" tabindex="-1">X</button>
     </div>
+  @endforeach
+</div>
+
     <button type="button" class="btn btn-sm btn-outline-secondary" id="addNoteBtn">Añadir nota</button>
 
     <div class="mt-4">
