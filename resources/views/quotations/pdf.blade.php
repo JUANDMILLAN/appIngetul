@@ -30,6 +30,9 @@
     <td><b>DIRIGIDO A:</b></td><td>{{ $quotation->dirigido_a }}</td>
   </tr>
   <tr>
+    <td><b>REFERENTE:</b></td><td>{{ $quotation->referente }}</td>
+  </tr>
+  <tr>
     <td><b>OBJETO:</b></td><td>{{ $quotation->objeto }}</td>
   </tr>
 </table>
