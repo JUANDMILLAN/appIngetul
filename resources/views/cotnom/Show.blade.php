@@ -109,6 +109,7 @@
                  href="{{ route('cotnom.pdf', ['slug' => $slug, 'quotation' => $q->id]) }}">
                 PDF
               </a>
+              <a class="btn btn-sm btn-secondary" href="{{ route('quotations.edit', $q) }}">Editar</a>
             </div>
           </div>
         </div>

@@ -9,7 +9,8 @@ use Illuminate\Http\Request;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Support\Facades\Storage;        // 👈 nuevo
 use Illuminate\Support\Str;
-use App\Services\ConsecutiveService;          // 👈 nuevo
+use App\Services\ConsecutiveService;
+use Illuminate\Support\Facades\DB;          // 👈 nuevo
 
 class QuotationController extends Controller
 {
@@ -163,7 +164,89 @@ private function ensureReferentePdf(\App\Models\Quotation $q): void
         \Illuminate\Support\Facades\Storage::disk('local')->put($path, $pdf->output());
     }
 }
+public function edit(Quotation $quotation)
+{
+    // Cargar items y datos para selects
+    $quotation->load('items');
 
+    $studyTypes   = \App\Models\StudyType::orderBy('label')->get();
+    $clients      = \App\Models\User::orderBy('name')->get(['id','name','email']);
+    $defaultNotes = $quotation->notas ?? []; // o las notas por defecto si quieres precargar
+
+    return view('quotations.edit', compact('quotation','studyTypes','clients','defaultNotes'));
+}
+
+
+
+public function update(Request $request, Quotation $quotation)
+{
+    $data = $request->validate([
+        'user_id'      => ['required','exists:users,id'],
+        'fecha'        => ['required','date'],
+        'ciudad'       => ['required','string'],
+        'departamento' => ['required','string'],
+        'dirigido_a'   => ['required','string'],
+        'referente'    => ['nullable','string','max:150'],
+        'objeto'       => ['nullable','string'],
+        'notas'        => ['nullable','array'],
+
+        'items'               => ['required','array','min:1'],
+        'items.*.id'          => ['nullable','integer','exists:quotation_items,id'],
+        'items.*.descripcion' => ['required','string'],
+        'items.*.und'         => ['required','string','max:10'],
+        'items.*.cantidad'    => ['required','integer','min:1'],
+        'items.*.vr_unitario' => ['required','integer','min:0'],
+    ]);
+
+    DB::transaction(function() use ($data, $quotation) {
+
+        // 1) Actualizar cabecera
+        $quotation->update([
+            'user_id'      => (int)$data['user_id'],
+            'fecha'        => $data['fecha'],
+            'ciudad'       => $data['ciudad'],
+            'departamento' => $data['departamento'],
+            'dirigido_a'   => $data['dirigido_a'],
+            'referente'    => $data['referente'] ?? null,
+            'objeto'       => $data['objeto'] ?? null,
+            'notas'        => $data['notas'] ?? [],
+            // NO toques 'estado' aquí salvo que tengas un selector de estado en el form
+        ]);
+
+        // 2) Sincronizar ítems (update / create / delete)
+        $enviados = collect($data['items']);
+
+        // ids enviados (para conservarlos)
+        $idsEnviados = $enviados->pluck('id')->filter()->all();
+
+        // borrar los que ya no vienen
+        $quotation->items()->whereNotIn('id', $idsEnviados ?: [0])->delete();
+
+        // upsert simple
+        foreach ($enviados as $row) {
+            $payload = [
+                'descripcion'  => $row['descripcion'],
+                'und'          => $row['und'],
+                'cantidad'     => (int) $row['cantidad'],
+                'vr_unitario'  => (int) $row['vr_unitario'],
+                'vr_total'     => (int) $row['cantidad'] * (int) $row['vr_unitario'],
+            ];
+
+            if (!empty($row['id'])) {
+                $quotation->items()->where('id', $row['id'])->update($payload);
+            } else {
+                $quotation->items()->create($payload);
+            }
+        }
+    });
+
+    // 3) Regenerar/guardar PDF en carpeta por REFERENTE (como ya haces)
+    $this->ensureReferentePdf($quotation->fresh('items'));
+
+    // 4) Redirigir a la carpeta por referente
+    $slug = \Illuminate\Support\Str::slug((string)($quotation->referente ?: 'sin-referente'));
+    return redirect()->route('cotnom.show', $slug)->with('ok', 'Cotización actualizada');
+}
 
 
 }
