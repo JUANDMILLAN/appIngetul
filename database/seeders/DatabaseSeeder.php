@@ -15,7 +15,12 @@ class DatabaseSeeder extends Seeder
 {
     $this->call(StudyTypeSeeder::class);
     $this->call(\Database\Seeders\CountersSeeder::class);
+     $this->call(RolesAndPermissionsSeeder::class);
 
 }
+// database/seeders/DatabaseSeeder.php
+
+
+
 
 }

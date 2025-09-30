@@ -97,6 +97,10 @@
 
     {{-- Tabla de ítems --}}
     <div class="table-responsive">
+      <div id="itemsError" class="alert alert-danger d-none">
+  Debes agregar al menos <strong>un ítem</strong> a la cotización. Marca uno o varios “Tipos de estudio” o usa “Agregar ítem manual”.
+</div>
+
       <table class="table table-bordered align-middle" id="itemsTable">
         <thead class="table-light">
           <tr>
@@ -157,9 +161,11 @@ function recalc() {
   let total = 0;
   document.querySelectorAll('#itemsBody tr').forEach((tr, idx) => {
     tr.querySelector('.item-num').innerText = idx + 1;
-    const qty = parseInt(tr.querySelector('[name$="[cantidad]"]').value || 0);
-    const unit = parseInt(tr.querySelector('[name$="[vr_unitario]"]').value || 0);
+
+    const qty  = parseInt(tr.querySelector('[name$="[cantidad]"]').value, 10) || 0;
+    const unit = parseInt(tr.querySelector('[name$="[vr_unitario]"]').value, 10) || 0;
     const line = qty * unit;
+
     tr.querySelector('.vr-total').innerText = money(line);
     tr.querySelector('[name$="[vr_total]"]').value = line;
     total += line;
@@ -187,36 +193,24 @@ function addRow(data = {descripcion:'', und:'UND', cantidad:1, vr_unitario:0, vr
   recalc();
 }
 
-document.getElementById('addRowBtn').addEventListener('click', () => addRow());
-
-document.getElementById('addNoteBtn').addEventListener('click', () => {
-  const div = document.createElement('div');
-  div.className = 'input-group mb-2';
-  div.innerHTML = `<span class="input-group-text">•</span>
-    <input name="notas[]" class="form-control" value="">
-    <button type="button" class="btn btn-outline-danger btn-sm del-note" tabindex="-1">X</button>`;
-  document.getElementById('notesBox').appendChild(div);
-  attachDeleteNoteEvents();
-});
+document.getElementById('addRowBtn').addEventListener('click', () => addRow())
 
 function attachDeleteNoteEvents() {
   document.querySelectorAll('.del-note').forEach(btn => {
-    btn.onclick = function() {
-      btn.closest('.input-group').remove();
-    };
+    btn.onclick = function() { btn.closest('.input-group').remove(); };
   });
 }
-// engancha las notas precargadas al cargar
 attachDeleteNoteEvents();
 
-// Debounce sencillo
+// Debounce
 const debounce = (fn, ms=200) => { let t; return (...args)=>{ clearTimeout(t); t=setTimeout(()=>fn(...args),ms); }; };
 
-// Cargar items desde checkboxes marcados (reconstruye tabla)
-document.getElementById('studyChecks').addEventListener('change', debounce(async () => {
+// --- Cargar items desde checkboxes (función reutilizable)
+async function loadItemsFromChecked() {
   const keys = Array.from(document.querySelectorAll('.study-check:checked')).map(el => el.value);
   const tbody = document.getElementById('itemsBody');
 
+  // Limpia la tabla si no hay checks
   if (keys.length === 0) {
     tbody.innerHTML = '';
     recalc();
@@ -226,13 +220,23 @@ document.getElementById('studyChecks').addEventListener('change', debounce(async
   const params = new URLSearchParams();
   keys.forEach(k => params.append('keys[]', k));
 
-  const url = `{{ route('api.study-items') }}?` + params.toString();
-  const res = await fetch(url);
-  const items = await res.json();
+  try {
+    const url = `{{ route('api.study-items') }}?` + params.toString();
+const res = await fetch(url, { headers: { 'Accept': 'application/json' } });
+if (!res.ok) throw new Error('HTTP ' + res.status);
+const items = await res.json();
 
-  tbody.innerHTML = '';
-  items.forEach(it => addRow(it)); // addRow ya invoca recalc()
-}, 200));
+
+    tbody.innerHTML = '';
+    items.forEach(it => addRow(it)); // addRow ya recalcula
+  } catch(e) {
+    console.error('Error cargando ítems:', e);
+  }
+}
+
+// Escucha cambios (con debounce)
+document.getElementById('studyChecks').addEventListener('change', debounce(loadItemsFromChecked, 200));
+
 
 // --- Tom Select para "Dirigido a"
 document.addEventListener('DOMContentLoaded', () => {
@@ -275,6 +279,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 document.addEventListener('DOMContentLoaded', () => {
   const refEl = document.getElementById('referenteSelect');
+
   if (refEl) {
     new TomSelect(refEl, {
       valueField: 'value',
@@ -305,5 +310,67 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 });
+  // TomSelect: Referente
+
+
+  // Si vienes de un error de validación y quedaron checks marcados, repuebla ítems
+  // Validación Bootstrap + mínimo un ítem
+(function () {
+  'use strict';
+  const form = document.getElementById('qform');
+  if (!form) return;
+
+  const itemsError = document.getElementById('itemsError');
+
+  form.addEventListener('submit', function (event) {
+    // Validación nativa/Bootstrap de campos requeridos
+    if (!form.checkValidity()) {
+      event.preventDefault();
+      event.stopPropagation();
+      const firstInvalid = form.querySelector(':invalid');
+      if (firstInvalid) firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // Requisito propio: al menos una fila en la tabla de ítems
+    const hasItems = document.querySelectorAll('#itemsBody tr').length > 0;
+    if (!hasItems) {
+      event.preventDefault();
+      event.stopPropagation();
+      if (itemsError) itemsError.classList.remove('d-none');
+
+      // Llevar al usuario hacia los tipos de estudio (o a la tabla)
+      const anchor = document.getElementById('studyChecks') || document.getElementById('itemsTable');
+      if (anchor) anchor.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      if (itemsError) itemsError.classList.add('d-none');
+    }
+
+    form.classList.add('was-validated');
+  }, false);
+})();
+
+  // --- Añadir nota dinámica
+const addNoteBtn = document.getElementById('addNoteBtn');
+if (addNoteBtn) {
+  addNoteBtn.addEventListener('click', () => {
+    const div = document.createElement('div');
+    div.className = 'input-group mb-2';
+    div.innerHTML = `
+      <span class="input-group-text">•</span>
+      <input name="notas[]" class="form-control" value="">
+      <button type="button" class="btn btn-outline-danger btn-sm del-note" tabindex="-1">X</button>
+    `;
+    document.getElementById('notesBox').appendChild(div);
+    attachDeleteNoteEvents(); // reengancha el handler de borrar nota
+  });
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const checked = document.querySelectorAll('.study-check:checked');
+  if (checked.length && document.querySelector('#itemsBody tr') === null) {
+    loadItemsFromChecked();
+  }
+});
+
+
 </script>
 @endsection

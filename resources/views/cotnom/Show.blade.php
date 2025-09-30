@@ -20,6 +20,8 @@
 
   <input id="quoteSearch" class="form-control mb-3 bg-secondary text-light border-0" placeholder="Buscar (consecutivo, fecha, ciudad, dirigido a, estado)…">
 
+
+
   @if($quotations->isEmpty())
     <div class="alert alert-info">No hay cotizaciones.</div>
   @else
@@ -44,8 +46,10 @@
           };
         @endphp
 
-        <div class="bg-dark list-group-item d-flex justify-content-between align-items-center quote-item border-start border-4 {{ $borderClass }} mb-3"
-             data-haystack="{{ Str::lower("$consec $fecha $q->ciudad $q->dirigido_a $estado") }}" style="color: #fff;">
+        <div
+  class="bg-dark list-group-item d-flex justify-content-between align-items-center quote-item border-start border-4 {{ $borderClass }} mb-3"
+  data-haystack="{{ \Illuminate\Support\Str::of("$consec $fecha $q->ciudad $q->dirigido_a $estado ".($q->referente ?? ''))->lower() }}"
+  style="color:#fff;">
 
             <div class="me-3 text-white">
             <div class="d-flex align-items-center gap-2">
@@ -125,14 +129,42 @@
 </style>
 
 <script>
-const q = document.getElementById('quoteSearch');
-if (q) {
-  q.addEventListener('input', () => {
-    const needle = q.value.toLowerCase();
-    document.querySelectorAll('.quote-item').forEach(it => {
-      it.style.display = (it.dataset.haystack || '').includes(needle) ? '' : 'none';
-    });
+document.addEventListener('DOMContentLoaded', () => {
+  const input = document.getElementById('quoteSearch');
+  if (!input) return;
+
+  // Normaliza: minúsculas + sin tildes
+  const normalize = (s = '') =>
+    (s || '')
+      .toString()
+      .normalize('NFD')                // separa base + tilde
+      .replace(/[\u0300-\u036f]/g, '') // borra tildes
+      .toLowerCase()
+      .trim();
+
+  const debounce = (fn, ms = 150) => {
+    let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+  };
+
+  // Pre-normaliza el haystack de cada tarjeta
+  document.querySelectorAll('.quote-item').forEach(it => {
+    const raw = it.dataset.haystack || '';
+    it.dataset.norm = normalize(raw);
   });
-}
+
+  const applyFilter = () => {
+    const q = normalize(input.value);
+    document.querySelectorAll('.quote-item').forEach(it => {
+      const hay = it.dataset.norm || '';
+      it.style.display = hay.includes(q) ? '' : 'none';
+    });
+  };
+
+  input.addEventListener('input', debounce(applyFilter, 150));
+
+  // Por si el navegador recuerda el valor del input al recargar
+  applyFilter();
+});
 </script>
+
 @endsection
