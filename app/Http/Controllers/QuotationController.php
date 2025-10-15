@@ -158,12 +158,12 @@ private function ensureReferentePdf(\App\Models\Quotation $q): void
     $file = 'COT-'.str_pad($q->consecutivo, 6, '0', STR_PAD_LEFT).'.pdf';
     $path = "{$dir}/{$file}";
 
-    if (!\Illuminate\Support\Facades\Storage::disk('local')->exists($path)) {
-        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('quotations.pdf', ['quotation' => $q])->setPaper('letter');
-        \Illuminate\Support\Facades\Storage::disk('local')->makeDirectory($dir);
-        \Illuminate\Support\Facades\Storage::disk('local')->put($path, $pdf->output());
-    }
+    $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('quotations.pdf', ['quotation' => $q])->setPaper('letter');
+
+    \Illuminate\Support\Facades\Storage::disk('local')->makeDirectory($dir);
+    \Illuminate\Support\Facades\Storage::disk('local')->put($path, $pdf->output()); // ← sobrescribe siempre
 }
+
 public function edit(Quotation $quotation)
 {
     // Cargar items y datos para selects

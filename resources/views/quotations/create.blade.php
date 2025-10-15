@@ -147,7 +147,18 @@
     </div>
   </form>
 </div>
-
+<style>
+  #referenteSelect option:checked,
+  #referenteSelect option[selected],
+  .ts-dropdown .active {
+    background-color: #000 !important;
+    color: #fff !important;
+  }
+  .ts-control .item {
+    background-color: #000 !important;
+    color: #fff !important;
+  }
+</style>
 {{-- Bootstrap 5 (rápido) --}}
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">

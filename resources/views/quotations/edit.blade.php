@@ -63,9 +63,9 @@
 
       <div class="col-md-3">
         <label class="form-label" for="dirigidoSelect">Dirigido a</label>
-        <select id="dirigidoSelect" name="dirigido_a" class="form-select" required>
+        <select id="dirigidoSelect" name="dirigido_a" class="form-select bg-dark text-white" required>
           <option value="{{ old('dirigido_a', $quotation->dirigido_a) }}" selected>
-            {{ old('dirigido_a', $quotation->dirigido_a) }}
+        {{ old('dirigido_a', $quotation->dirigido_a) }}
           </option>
         </select>
       </div>
@@ -73,9 +73,9 @@
       <div class="col-md-3">
         <label class="form-label" for="referenteSelect">Referente</label>
         @php $ref = old('referente', $quotation->referente) @endphp
-        <select id="referenteSelect" name="referente" class="form-select">
+        <select id="referenteSelect" name="referente" class="form-select bg-dark text-white">
           @if($ref)
-            <option value="{{ $ref }}" selected>{{ $ref }}</option>
+        <option value="{{ $ref }}" selected>{{ $ref }}</option>
           @endif
         </select>
         <div class="form-text">Escribe para buscar o crear…</div>

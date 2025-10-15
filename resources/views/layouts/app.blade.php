@@ -13,12 +13,7 @@
   @include('partials.sidebar')
 
   <div class="main-with-sidebar">
-    {{-- Si quieres un botón hamburguesa en móviles --}}
-    <div class="d-lg-none p-2 border-bottom bg-light">
-      <button class="btn btn-outline-secondary" type="button" data-action="toggle-sidebar">
-        <i class="bi bi-list"></i> Menú
-      </button>
-    </div>
+   
 
     {{-- aquí va tu contenido --}}
     <main class="container-fluid py-3">
